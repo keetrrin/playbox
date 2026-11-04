@@ -1,0 +1,17 @@
+{% extends 'games/base.html' %}{% block content %}
+<div class="gh"><div class="e">{% if kind == 'party' %}🎉{% else %}💬{% endif %}</div><div><h1>{{ title }}</h1><p>{% if kind == 'party' %}Код пати: <b>{{ key }}</b> — друзья входят по коду на главной или по ссылке.{% else %}Личный чат{% endif %}</p></div></div>
+{% if kind == 'party' %}<div class="tools"><button class="ghost" onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')">Скопировать ссылку</button>
+<form method="post" action="{% url 'party_game' key %}" style="display:flex;gap:8px">{% csrf_token %}<select name="game"><option value="uno">UNO</option><option value="durak">Дурак</option>{% for g in games %}<option value="{{ g.slug }}">Гонка очков: {{ g.title }}</option>{% endfor %}</select><button>Запустить игру для пати</button></form></div><div id="mem" class="chips"></div>{% endif %}
+<div class="chat" id="log"></div>
+<form id="cf2" class="chatf"><input id="txt" maxlength="300" placeholder="Сообщение…" autocomplete="off"><button>Отправить</button></form>
+<script>
+const U="{% url 'chat_api' kind key %}",csrf="{{ csrf_token }}",log=document.getElementById('log');let after=0;
+function add(m){const d=document.createElement('div');d.className='msg2'+(m.mine?' me':'');const b=document.createElement('b');b.textContent=m.name+' ';d.append(b);const s=document.createElement('span');
+ m.text.split(/(\/(?:race|uno|duel|room|durak|story)\/[A-Z0-9]{5}\/)/).forEach((p,i)=>{if(i%2){const a=document.createElement('a');a.href=p;a.textContent='Присоединиться →';s.append(a)}else s.append(p)});
+ d.append(s);const t=document.createElement('small');t.textContent=' '+m.ts;d.append(t);log.append(d);after=Math.max(after,m.id)}
+async function poll(){try{const d=await (await fetch(U+'?after='+after)).json();if(d.error)return;const near=log.scrollHeight-log.scrollTop-log.clientHeight<90;d.msgs.forEach(add);
+ if(d.members)document.getElementById('mem').innerHTML=d.members.map(n=>'<span class="chip">'+n+'</span>').join('');if(d.msgs.length&&near)log.scrollTop=log.scrollHeight}catch(e){}}
+document.getElementById('cf2').onsubmit=async e=>{e.preventDefault();const i=document.getElementById('txt'),t=i.value.trim();if(!t)return;i.value='';
+ try{await fetch(U,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({text:t})});poll()}catch(x){toast('Не удалось отправить','error')}};
+poll();setInterval(poll,1500);
+</script>{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'games/base.html' %}{% block content %}
+<div class="gh"><div class="e">👥</div><div><h1>Комната {{ room.code }}</h1><p>Отправьте другу ссылку на эту страницу или код <b>{{ room.code }}</b>. Друг должен войти в аккаунт.</p></div></div>
+<div class="play"><div id="info">Загрузка…</div><div class="ttt" id="b"></div><button id="again" style="display:none">Играть снова</button>
+<form method="post" action="{% url 'room_new' %}">{% csrf_token %}<button>Новая комната</button></form></div>
+<script>
+const csrf="{{ csrf_token }}",S="{% url 'room_state' room.code %}",M="{% url 'room_move' room.code %}",info=document.getElementById('info'),bd=document.getElementById('b');
+let st=null;
+for(let i=0;i<9;i++){const b=document.createElement('button');b.onclick=()=>move(i);bd.append(b)}
+function render(){[...bd.children].forEach((b,i)=>{const v=st.board[i].trim();b.textContent=v=='X'?'❌':v=='O'?'⭕':''});
+ info.textContent=!st.guest?'Ждём друга… отправьте ему ссылку':st.winner?(st.winner=='D'?'Ничья!':st.winner==st.you?'🎉 Вы победили!':'Вы проиграли'):!st.you?'Вы наблюдатель':(st.turn==st.you?'Ваш ход ('+(st.you=='X'?'❌':'⭕')+')':'Ход соперника…')}
+async function poll(){try{st=await (await fetch(S)).json();render()}catch(e){info.textContent='Нет связи…'}}
+async function move(i){try{const r=await fetch(M,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({i})});const d=await r.json();if(!r.ok)return;st=d;render()}catch(e){info.textContent='Нет связи…'}}
+const _r=render;render=function(){_r();document.getElementById('again').style.display=(st.winner&&st.you)?'':'none'};
+document.getElementById('again').onclick=async()=>{try{const r=await fetch("{% url 'room_rematch' room.code %}",{method:'POST',headers:{'X-CSRFToken':csrf}});if(r.ok){st=await r.json();render()}}catch(e){}};
+poll();setInterval(poll,1000);
+</script>{% endblock %}

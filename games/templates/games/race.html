@@ -1,0 +1,20 @@
+{% extends 'games/base.html' %}{% load static %}{% block content %}
+<div class="gh"><div class="e">{{ game.emoji }}</div><div><h1>Гонка очков: {{ game.title }}</h1><p>Код комнаты: <b>{{ race.code }}</b>. Друг входит по коду на главной или по ссылке.</p></div></div>
+<button onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')" style="margin-top:12px">Скопировать ссылку</button>
+<button class="ghost" onclick="fs('play')">Во весь экран</button> <button class="ghost" onclick="again()">Сыграть ещё раз</button>
+<div class="play" id="play"></div>
+<h2>Игроки</h2><div class="tw"><table><tr><th>#</th><th>Игрок</th><th>Лучший результат</th></tr><tbody id="sb"></tbody></table></div>
+{% if three %}<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>{% endif %}
+<script type="module">
+import { GAMES } from "{% static 'games/games.js' %}";
+const csrf="{{ csrf_token }}",sb=document.getElementById('sb');
+const draw=l=>sb.innerHTML=l.map((p,i)=>`<tr><td>${i+1}</td><td>${p.name}</td><td><b>${p.value}</b></td></tr>`).join('');
+async function poll(){try{draw((await (await fetch("{% url 'race_state' race.code %}")).json()).players)}catch(e){}}
+poll();setInterval(poll,2000);
+const play=document.getElementById('play');let stopG;
+window.again=()=>{stopG&&stopG();const x=play.querySelector('.fsx');play.innerHTML='';x&&play.append(x);stopG=GAMES["{{ game.slug }}"].start(play,cb)};
+const cb=async score=>{
+  try{const r=await fetch("{% url 'race_score' race.code %}",{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({score})});
+    if(r.ok)draw((await r.json()).players);else toast('Не удалось сохранить результат','error')}catch(e){toast('Нет связи с сервером','error')}};
+window.again();
+</script>{% endblock %}

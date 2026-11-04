@@ -1,0 +1,14 @@
+{% extends 'games/base.html' %}{% block content %}
+<h1>Друзья и пати</h1>
+<form method="post" action="{% url 'friend_add' %}" class="tools">{% csrf_token %}<input name="username" placeholder="Ник игрока"><button>Добавить в друзья</button></form>
+{% if incoming %}<h2>Заявки</h2>{% for f in incoming %}<div class="cm"><div class="av">{{ f.a.username|first|upper }}</div><div><b>{{ f.a.username }}</b>
+<form method="post" action="{% url 'friend_act' f.pk 'accept' %}" style="display:inline">{% csrf_token %}<button>Принять</button></form>
+<form method="post" action="{% url 'friend_act' f.pk 'decline' %}" style="display:inline">{% csrf_token %}<button class="d">Отклонить</button></form></div></div>{% endfor %}{% endif %}
+<h2>Мои друзья</h2>{% for f in friends %}<div class="cm"><div class="av">{{ f.u.username|first|upper }}</div><div><b>{{ f.u.username }}</b>
+<a href="{% url 'dm' f.u.username %}"><button>Чат</button></a>
+<form method="post" action="{% url 'friend_act' f.pk 'remove' %}" style="display:inline">{% csrf_token %}<button class="d">Удалить</button></form></div></div>
+{% empty %}<p>Пока никого. Добавьте друга по нику.</p>{% endfor %}
+{% if outgoing %}<h2>Отправленные заявки</h2>{% for f in outgoing %}<p>{{ f.b.username }} — ждёт ответа</p>{% endfor %}{% endif %}
+<h2>Пати</h2><form method="post" action="{% url 'party_new' %}">{% csrf_token %}<button>Создать пати</button></form>
+{% for p in parties %}<p><a href="{% url 'party' p.code %}">Пати {{ p.code }}</a></p>{% endfor %}
+{% endblock %}

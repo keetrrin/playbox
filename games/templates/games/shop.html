@@ -1,0 +1,7 @@
+{% extends 'games/base.html' %}{% block content %}
+<h1>Магазин</h1><p>Монеты: <b>{{ coins }}</b>. Их дают за результаты в играх, гонки и прохождение сюжета.</p>
+<div class="grid">{% for i in items %}<div class="card"><div class="av big f-{{ i.code }}" style="align-self:center">{{ user.username|first|upper }}</div><h3>{{ i.name }}</h3><p>{{ i.price }} монет</p>
+{% if i.owned %}<form method="post" action="{% url 'shop_act' 'equip' i.code %}">{% csrf_token %}<button {% if i.eq %}disabled{% endif %}>{% if i.eq %}Надета{% else %}Надеть{% endif %}</button></form>
+{% else %}<form method="post" action="{% url 'shop_act' 'buy' i.code %}">{% csrf_token %}<button>Купить</button></form>{% endif %}</div>{% endfor %}</div>
+{% if frame %}<form method="post" action="{% url 'shop_act' 'unequip' frame %}" style="margin-top:16px">{% csrf_token %}<button class="ghost">Снять рамку</button></form>{% endif %}
+{% endblock %}

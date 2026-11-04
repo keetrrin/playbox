@@ -1,0 +1,20 @@
+{% extends 'games/base.html' %}{% load static %}{% block content %}
+<div class="gh"><div class="e">♠️</div><div><h1>Дурак 3D</h1><p>Код комнаты: <b>{{ durak.code }}</b> · 2–4 игрока, подкидной. Атакующий подкидывает карты, защитник бьёт. В этой версии подкидывает только атакующий.</p></div></div>
+<button class="ghost" onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')">Скопировать ссылку</button> <button id="start" style="display:none">Начать / раздать заново</button>
+<div class="stage cards" id="tbl"></div><div id="info" class="cinfo"></div>
+<div style="display:flex;gap:10px;margin-top:10px"><button id="done" style="display:none">Бито</button><button id="take" class="d" style="display:none;padding:10px 18px">Беру</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script src="{% static 'games/cards3d.js' %}"></script>
+<script>
+const csrf="{{ csrf_token }}",S="{% url 'durak_state' durak.code %}",M="{% url 'durak_move' durak.code %}",ST="{% url 'durak_start' durak.code %}",SU={S:'♠',H:'♥',D:'♦',C:'♣'};let st=null;
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(b||{})});
+const tbl=CardTable(document.getElementById('tbl'),i=>{if(!st||!st.started||st.winner||i==='deck')return;if(st.role=='att')act('attack',i);else if(st.role=='def')act('defend',i);else toast('Сейчас вы не ходите','info')});
+function render(){document.getElementById('start').style.display=(st.host&&(!st.started||st.winner)&&st.players.length>=2)?'':'none';
+ const covered=st.started&&st.table.length&&st.table.every(p=>p[1]);document.getElementById('done').style.display=(st.started&&!st.winner&&st.role=='att'&&covered)?'':'none';document.getElementById('take').style.display=(st.started&&!st.winner&&st.role=='def'&&st.table.length)?'':'none';
+ const inf=document.getElementById('info');inf.textContent=!st.started?'Ждём игроков ('+st.players.length+'/4): '+st.players.map(p=>p.name).join(', ')+'. '+(st.host?'Нажмите «Начать».':'Хозяин начнёт игру.'):(st.winner?st.winner:'Козырь '+SU[st.trump[0]]+' · в колоде '+st.deck+' · атакует '+st.att+', защищается '+st.df+(st.role=='att'?' (вы атакуете)':st.role=='def'?' (вы защищаетесь)':''))+(st.log?' · '+st.log:'');
+ tbl.set({kind:'p',hand:st.started?st.hand.map(c=>({t:'p',c})):[],opp:st.players.filter(p=>!p.you).map(p=>({name:p.name,n:p.n,turn:p.turn})),pile:st.deck||0,trump:st.started&&st.deck>0?{t:'p',c:st.trump}:null,table:st.started?st.table.map(p=>({a:{c:p[0]},d:p[1]?{c:p[1]}:null})):[],mine:st.started&&st.players.some(p=>p.you&&p.turn)})}
+async function poll(){try{const d=await (await fetch(S)).json();if(!d.error){st=d;render()}}catch(e){}}
+async function act(a,i){try{const r=await post(M,{act:a,i}),d=await r.json();if(!r.ok)return toast(d.error,'error');st=d;render()}catch(e){toast('Нет связи','error')}}
+document.getElementById('done').onclick=()=>act('done');document.getElementById('take').onclick=()=>act('take');
+document.getElementById('start').onclick=async()=>{try{const r=await post(ST),d=await r.json();if(!r.ok)toast(d.error,'error');else{st=d;render()}}catch(e){}};
+poll();setInterval(poll,1000);
+</script>{% endblock %}
