@@ -1,0 +1,5 @@
+{% extends 'games/base.html' %}{% block content %}
+<h1>Личный кабинет</h1><div class="gh"><div class="av big {% if frame %}f-{{ frame }}{% endif %}">{{ user.username|first|upper }}</div><div><b>{{ user.username }}</b><br>Монеты: <b>{{ coins }}</b> · <a href="{% url 'shop' %}">Магазин рамок</a></div></div><div class="card"><p>Ник: {{ user.username }}<br>Email: {{ user.email }}<br>Комментариев: {{ comments_count }}</p></div>
+<h2>Мои рекорды</h2>{% if scores %}<table>{% for s in scores %}<tr><td>{{ s.game.title }}</td><td>{{ s.value }}</td></tr>{% endfor %}</table>
+{% else %}<p>Рекордов пока нет.</p>{% endif %}<h2>Достижения</h2><div class="achs">{% for a in ach %}<div class="ach {% if a.done %}done{% endif %}"><div class="ai">{% if a.done %}★{% else %}🔒{% endif %}</div><div><b>{{ a.title }}</b><br><small>{{ a.desc }}</small></div></div>{% endfor %}</div>
+{% endblock %}

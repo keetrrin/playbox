@@ -1,0 +1,41 @@
+{% extends 'games/base.html' %}{% block content %}
+<div class="gh"><div class="e">🎲</div><div><h1>{{ title }}</h1><p id="story"></p><p>Код комнаты: <b>{{ duel.code }}</b>. Друг входит по коду на главной или по ссылке.</p></div></div>
+<button class="ghost" onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')">Скопировать ссылку</button>
+<div class="play"><div id="info"></div><div id="b"></div><div id="rp" class="rps-row" style="display:none"></div><button id="again" style="display:none">Играть снова</button></div>
+<script>
+const K="{{ duel.kind }}",csrf="{{ csrf_token }}",S="{% url 'duel_state' duel.code %}",M="{% url 'duel_move' duel.code %}",RM="{% url 'duel_rematch' duel.code %}";
+const $=id=>document.getElementById(id),bd=$('b'),info=$('info'),rp=$('rp'),again=$('again'),E=['✊','✋','✌️'];
+const STORY={c4:'Соберите четыре фишки в ряд.',gomoku:'Соберите пять в ряд на поле 9×9.',rps:'Играем до трёх побед.',
+ navy:'Пиратская бухта. У каждого флот из 5 кораблей. Попали — стреляете снова. Потопите чужой флот первым!',
+ west:'Дикий Запад, полдень. Ждите сигнала «ОГОНЬ!» и стреляйте первым — выстрелите раньше, и раунд проигран. До трёх побед.',
+ tug:'Ярмарка. Перетягивание каната: жмите кнопку (или Пробел) как можно быстрее!'};
+$('story').textContent=STORY[K];
+let st=null;const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(b||{})});
+const mkb=(p,f)=>{const b=document.createElement('button');b.onclick=f;p.append(b);return b};
+if(K=='rps'){[['✊','Камень'],['✋','Бумага'],['✌️','Ножницы']].forEach(([e,n],k)=>{const b=mkb(rp,()=>move(k));b.className='rps-card';b.innerHTML='<span>'+e+'</span><small>'+n+'</small>'});rp.style.display=''}
+else if(K=='navy'){bd.innerHTML='<div class="navy"><div><h4>Флот врага — стреляйте сюда</h4><div class="ng" id="ne"></div></div><div><h4>Ваш флот</h4><div class="ng" id="nm"></div></div></div>';
+ for(let i=0;i<64;i++){mkb($('ne'),()=>move(i));$('nm').append(document.createElement('div'))}}
+else if(K=='west'){bd.innerHTML='<div id="wsig" class="wsig"></div><button id="fire" class="fire">ОГОНЬ</button>';$('fire').onclick=()=>move(0)}
+else if(K=='tug'){bd.innerHTML='<div class="rope"><div id="rpos" class="rpos"></div></div><p>Вы тянете вправо →</p><button id="pull" class="fire">ТЯНИ!</button>';$('pull').onclick=()=>move(0);
+ document.addEventListener('keydown',e=>{if(e.code=='Space'){e.preventDefault();if(!e.repeat)move(0)}})}
+else{bd.className=K=='c4'?'c4':'gmk';const n=K=='c4'?42:81;for(let i=0;i<n;i++)mkb(bd,()=>move(K=='c4'?i%7:i))}
+function render(){const s=st.state,me=st.you||'X',o=me=='X'?'O':'X';let t='';
+ if(K=='c4'||K=='gomoku')[...bd.children].forEach((b,i)=>{const v=s.b[i].trim();b.className=v;if(K=='gomoku')b.textContent=v?'●':''});
+ if(K=='navy'){[...$('ne').children].forEach((b,i)=>{b.className=s.enemy[i].trim();b.textContent=s.enemy[i]=='h'?'✖':s.enemy[i]=='x'?'•':''});
+  [...$('nm').children].forEach((d,i)=>{d.className=s.mine[i].trim();d.textContent=s.mine[i]=='h'?'✖':s.mine[i]=='x'?'•':''})}
+ if(K=='tug')$('rpos').style.left=(50+(me=='X'?s.pos:-s.pos)/15*47)+'%';
+ if(K=='west'){$('wsig').textContent=s.go?'ОГОНЬ!':'Ждите сигнала…';$('wsig').className='wsig'+(s.go?' go':'');
+  t='Счёт: вы '+s.score[me]+' : '+s.score[o]+' соперник. '+(s.last?(s.last.w==me?'Раунд ваш'+(s.last.foul?' — соперник выстрелил раньше сигнала. ':'. '):'Раунд соперника'+(s.last.foul?' — вы выстрелили раньше сигнала! ':'. ')):'')}
+ let u;
+ if(!st.guest)u='Ждём друга… отправьте ему ссылку';
+ else if(st.winner)u=st.winner=='D'?'Ничья!':st.winner==st.you?'Вы победили!':'Вы проиграли';
+ else if(!st.you)u='Вы наблюдатель';
+ else if(K=='rps')u='Счёт: вы '+s.score[me]+' : '+s.score[o]+' соперник (до 3). '+(s.last?'Прошлый раунд: вы '+E[s.last[me]]+' · соперник '+E[s.last[o]]+'. ':'')+(s.picked[me]?'Ждём выбор соперника…':'Ваш выбор');
+ else if(K=='tug'||K=='west')u='';
+ else u=st.turn==st.you?(K=='navy'?'Ваш выстрел':'Ваш ход ('+(K=='c4'?(me=='X'?'красные':'жёлтые'):(me=='X'?'чёрные':'белые'))+')'):'Ход соперника…';
+ info.textContent=t+u;again.style.display=(st.winner&&st.you)?'':'none'}
+async function poll(){try{st=await (await fetch(S)).json();render()}catch(e){info.textContent='Нет связи…'}}
+async function move(i){try{const r=await post(M,{i});const d=await r.json();if(!r.ok)return toast(d.error,'error');st=d;render()}catch(e){toast('Нет связи с сервером','error')}}
+again.onclick=async()=>{try{const r=await post(RM);if(r.ok){st=await r.json();render()}}catch(e){}};
+poll();setInterval(poll,(K=='west'||K=='tug')?350:1000);
+</script>{% endblock %}

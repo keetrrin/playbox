@@ -1,0 +1,30 @@
+{% extends 'games/base.html' %}{% load static %}{% block content %}
+<div class="gh"><div class="e">{{ game.emoji }}</div><div><h1>{{ game.title }}</h1><p>{{ game.description }}</p></div></div>
+<button class="ghost" onclick="fs('play')">Во весь экран</button> <div class="play" id="play"></div>{% if user.is_authenticated %}<form method="post" action="{% url 'race_new' %}" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="game" value="{{ game.slug }}"><button>Гонка очков с друзьями</button></form>{% endif %}
+<div class="cols"><section><h2>Таблица лидеров</h2><div id="lb">
+{% if scores %}<div class="tw"><table><tr><th>#</th><th>Игрок</th><th>Очки</th></tr>
+{% for s in scores %}<tr><td>{% if forloop.counter == 1 %}🥇{% elif forloop.counter == 2 %}🥈{% elif forloop.counter == 3 %}🥉{% else %}{{ forloop.counter }}{% endif %}</td><td>{{ s.user.username }}</td><td><b>{{ s.value }}</b></td></tr>{% endfor %}</table></div>
+{% else %}<p>Пока нет рекордов — будьте первым!</p>{% endif %}</div></section>
+<section><h2>Комментарии</h2>
+{% if user.is_authenticated %}<form method="post" class="card" style="max-width:none;margin:0 0 10px">{% csrf_token %}{{ form }}<button>Отправить</button></form>
+{% else %}<p><a href="{% url 'login' %}">Войдите</a>, чтобы сохранять рекорды и комментировать.</p>{% endif %}
+{% for c in comments %}<div class="cm"><div class="av {% if c.frame %}f-{{ c.frame }}{% endif %}">{{ c.user.username|first|upper }}</div><div><b>{{ c.user.username }}</b> <small>{{ c.created|date:"d.m.Y H:i" }}</small><br>{{ c.text }}
+{% if c.user == user or user.is_staff %}<form method="post" action="{% url 'delete_comment' c.pk %}" style="display:inline">{% csrf_token %}<button class="d">✕</button></form>{% endif %}</div></div>
+{% empty %}<p>Комментариев пока нет.</p>{% endfor %}</section></div>
+{% if three %}<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>{% endif %}
+<script type="module">
+import { GAMES } from "{% static 'games/games.js' %}";
+GAMES["{{ game.slug }}"].start(document.getElementById("play"), async score => {
+  {% if user.is_authenticated %}
+  try {
+    const r = await fetch("{% url 'save_score' game.slug %}", {method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}"}, body: JSON.stringify({score})});
+    const d = await r.json();
+    if (!r.ok) return toast(d.error || "Ошибка сохранения","error");
+    (d.ach || []).forEach(a => toast("Достижение: " + a, "success"));
+    if (d.coins) toast("+" + d.coins + " монет", "info");
+    if (d.new_record) { toast("Новый рекорд: " + d.score, "success"); const doc = new DOMParser().parseFromString(await (await fetch(location.href)).text(), "text/html"); document.getElementById("lb").innerHTML = doc.getElementById("lb").innerHTML; }
+  } catch (e) { toast("Нет связи с сервером","error"); }
+  {% else %}toast("Войдите, чтобы сохранять рекорды","info");{% endif %}
+});
+</script>{% endblock %}

@@ -1,0 +1,23 @@
+{% extends 'games/base.html' %}{% load static %}{% block content %}
+<div class="gh"><div class="e">🃏</div><div><h1>UNO 3D</h1><p>Код комнаты: <b>{{ uno.code }}</b> · 2–4 игрока. Нажимайте на карты в руке. Подходящие карты приподняты, неподходящие затемнены.</p></div></div>
+<button class="ghost" onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')">Скопировать ссылку</button> <button id="start" style="display:none">Начать / раздать заново</button>
+<div class="stage cards" id="tbl"></div><div id="info" class="cinfo"></div><div id="rule" class="cinfo" style="color:var(--mut);font-size:.9rem"></div>
+<div style="display:flex;gap:10px;margin-top:10px"><button id="draw" style="display:none">Взять карту</button><button id="pass" class="ghost" style="display:none">Пропустить ход</button></div>
+<div id="wild" style="display:none;gap:10px;margin-top:10px"><button class="uc cR" data-c="R"></button><button class="uc cY" data-c="Y"></button><button class="uc cG" data-c="G"></button><button class="uc cB" data-c="B"></button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script src="{% static 'games/cards3d.js' %}"></script>
+<script>
+const csrf="{{ csrf_token }}",S="{% url 'uno_state' uno.code %}",M="{% url 'uno_move' uno.code %}",ST="{% url 'uno_start' uno.code %}";let st=null;
+const RULE={one:'Вариант «1 карта»: нет подходящей карты — берёте одну. Подошла — можно сыграть (или пропустить ход), не подошла — ход переходит дальше.',many:'Вариант «до нужной»: можно тянуть карты сколько угодно, даже если подходящая уже есть. Ход заканчивается, когда вы сыграли карту.'};
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(b||{})});
+const draw=()=>{if(!st||!st.started||st.winner)return;if(!st.canDraw)return toast(st.mode=='one'?'Брать карту можно, только если нет подходящей (и один раз)':'Сейчас не ваш ход','info');move({draw:1})};
+const tbl=CardTable(document.getElementById('tbl'),i=>{if(!st||!st.started||st.winner)return;if(i==='deck')return draw();const c=st.hand[i];if(c[0]=='K'){const w=document.getElementById('wild');w.style.display='flex';w.querySelectorAll('button').forEach(x=>x.onclick=()=>{w.style.display='none';move({i,color:x.dataset.c})})}else move({i})});
+function render(){document.getElementById('start').style.display=(st.host&&(!st.started||st.winner)&&st.players.length>=2)?'':'none';
+ document.getElementById('rule').textContent=RULE[st.mode]||'';document.getElementById('draw').style.display=st.canDraw?'':'none';document.getElementById('pass').style.display=st.canPass?'':'none';
+ const inf=document.getElementById('info');inf.textContent=!st.started?'Ждём игроков ('+st.players.length+'/4): '+st.players.map(p=>p.name).join(', ')+'. '+(st.host?'Нажмите «Начать», когда все в сборе.':'Хозяин начнёт игру.'):(st.winner?'Победил '+st.winner+'!':(st.yourturn?'Ваш ход':'Ходит '+st.turnName))+(st.log?' · '+st.log:'');
+ tbl.set({kind:'u',hand:st.started?st.hand.map((c,i)=>({t:'u',c,ok:!!(st.yourturn&&st.ok[i]&&(!st.drew||i==st.hand.length-1))})):[],opp:st.players.filter(p=>!p.you).map(p=>({name:p.name,n:p.n,turn:p.turn})),pile:st.deck||0,top:st.started?{t:'u',c:st.top}:null,ring:st.started?st.color:null,mine:!!st.yourturn})}
+async function poll(){try{const d=await (await fetch(S)).json();if(!d.error){st=d;render()}}catch(e){}}
+async function move(b){try{const r=await post(M,b),d=await r.json();if(!r.ok)return toast(d.error,'error');st=d;render()}catch(e){toast('Нет связи','error')}}
+document.getElementById('draw').onclick=draw;document.getElementById('pass').onclick=()=>move({pass:1});
+document.getElementById('start').onclick=async()=>{try{const r=await post(ST),d=await r.json();if(!r.ok)toast(d.error,'error');else{st=d;render()}}catch(e){}};
+poll();setInterval(poll,1000);
+</script>{% endblock %}

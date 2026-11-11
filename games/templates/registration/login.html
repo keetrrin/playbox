@@ -1,0 +1,3 @@
+{% extends 'games/base.html' %}{% block content %}
+<form method="post" class="card"><h2>Вход</h2>{% csrf_token %}{{ form.as_p }}<button>Войти</button>
+<a href="{% url 'register' %}">Нет аккаунта?</a></form>{% endblock %}

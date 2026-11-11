@@ -1,0 +1,77 @@
+{% extends 'games/base.html' %}{% block content %}
+<div class="gh"><div class="e">🏴‍☠️</div><div><h1>Остров сокровищ</h1><p>Код комнаты: <b>{{ story.code }}</b> · до 8 игроков голосуют за выбор. Друзья входят по коду на главной или по ссылке.</p></div></div>
+<button class="ghost" onclick="navigator.clipboard.writeText(location.href);toast('Ссылка скопирована','success')">Скопировать ссылку</button>
+<div class="stage isl"><canvas id="c"></canvas><div class="dlg"><div class="who" id="who"></div><p id="txt"></p><div id="opts" class="opts"></div><div class="vt"><small id="vt"></small> <button id="res" class="ghost" style="display:none">Принять решение</button></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+if(!window.THREE){document.querySelector('.stage').textContent='3D-движок не загрузился. Проверьте интернет.'}else{
+const csrf="{{ csrf_token }}",S="{% url 'story_state' story.code %}",V="{% url 'story_vote' story.code %}",RS="{% url 'story_resolve' story.code %}";
+const N={
+ start:{sc:'port',who:'Рассказчик',t:'Таверна «Адмирал Бенбоу». Старый моряк Билли Бонс умер, оставив сундук. Внутри — карта острова с красным крестом и тяжёлый ключ.',o:[['Забрать карту себе','map'],['Показать карту доктору Ливси','doc']]},
+ map:{sc:'port',who:'Рассказчик',t:'На карте подписи: «Якорь Флинта», «Пещера эха», «Холм Подзорной трубы». Хозяин таверны уже косится на ваш сундук. Нужно действовать.',o:[['Бежать к доктору Ливси','doc'],['Нанять шхуну на последние гроши','ship']]},
+ doc:{sc:'port',npc:'doc',who:'Доктор Ливси',t:'«Это карта капитана Флинта! Сквайр Трелони снарядит шхуну «Эспаньола». Но нам нужен надёжный экипаж и повар».',o:[['Нанять кока Джона Сильвера','silver'],['Набрать честных моряков из порта','crew']]},
+ silver:{sc:'ship',npc:'silver',who:'Джон Сильвер',t:'«Рад служить, юнга! Лучшего повара вам не найти». У него костыль, на плече — попугай, а во взгляде — что-то неуловимое.',o:[['Довериться ему','sea'],['Присматривать за ним','sea2']]},
+ crew:{sc:'ship',npc:'capt',who:'Капитан Смоллетт',t:'«Команда честная, но малочисленная. Зато я не боюсь мятежа». Шхуна выходит в море, ветер свеж.',o:[['Поднять паруса','sea']]},
+ ship:{sc:'ship',who:'Рассказчик',t:'Старый шкипер соглашается вывести вас в море. Шхуна мала, но быстра. Однако за вами уже следят...',o:[['Выйти в море','sea']]},
+ sea2:{sc:'ship',npc:'silver',who:'Рассказчик',t:'Ночью вы слышите шёпот в трюме: Сильвер и несколько матросов обсуждают мятеж. Теперь вы знаете их план.',o:[['Рассказать капитану','storm'],['Подслушать до конца','storm']]},
+ sea:{sc:'ship',who:'Рассказчик',t:'Недели плавания. На горизонте — буря, какой не видели даже бывалые моряки.',o:[['Держать курс сквозь шторм','storm'],['Лечь в дрейф и переждать','storm']]},
+ storm:{sc:'storm',npc:'capt',who:'Капитан Смоллетт',t:'«Держитесь за снасти!» Волны перекатываются через палубу. Когда буря стихает, впереди — остров с холмом, похожим на подзорную трубу.',o:[['Высадиться на берег','beach']]},
+ beach:{sc:'beach',who:'Рассказчик',t:'Белый песок, пальмы, тишина. На песке — следы чужих сапог. У подножья холма видна тропа в джунгли и пещера у скал.',o:[['Идти через джунгли','jungle'],['Исследовать пещеру у скал','cave']]},
+ jungle:{sc:'jungle',npc:'ben',who:'Бен Ганн',t:'Из зарослей выходит бородатый одичавший человек: «Я Бен Ганн! Три года на острове. Сокровище... я его перепрятал!»',o:[['Поверить Бену Ганну','treasure'],['Не доверять, идти по карте','cave']]},
+ cave:{sc:'cave',who:'Рассказчик',t:'Пещера эха. Факелы трещат, голоса возвращаются издалека. На стене — крест, как на карте. А позади слышны шаги.',o:[['Спрятаться и ждать','ambush'],['Смело идти вглубь','treasure']]},
+ ambush:{sc:'cave',npc:'silver',who:'Джон Сильвер',t:'«Ну-ну, юнга. Я знал, что ты придёшь сюда!» Пираты окружают вас. Сильвер протягивает руку: «Делим сокровище пополам?»',o:[['Согласиться на сделку','end_bad'],['Отказаться и позвать своих','end_good']]},
+ treasure:{sc:'treasure',who:'Рассказчик',t:'Сундук Флинта. Золото, жемчуг, старинные карты. Но у выхода слышны голоса: пираты тоже нашли путь.',o:[['Взять сколько унесёшь и бежать','end_good'],['Взять всё до последней монеты','end_bad'],['Оставить золото и спасти друзей','end_secret']]},
+ end_good:{sc:'beach',who:'Концовка · Сокровища и слава',t:'Вы с друзьями вернулись в Бристоль на «Эспаньоле» с золотом на всех. История острова стала легендой. Каждый игрок получил 40 монет!'},
+ end_bad:{sc:'cave',who:'Концовка · Жадность',t:'Золото оказалось тяжелее, чем вы думали. Остров не отпускает жадных. Но легенда о вашем походе ещё ходит по тавернам. Каждый игрок получил 40 монет.'},
+ end_secret:{sc:'port',who:'Концовка · Настоящее сокровище',t:'Вы вывели друзей живыми, а золото осталось острову. Бен Ганн улыбается: лучший клад — команда, которая вернулась домой. Каждый игрок получил 40 монет!'}};
+const T=THREE,cv=document.getElementById('c'),R3=new T.WebGLRenderer({canvas:cv,antialias:true});R3.setSize(1280,720,false);R3.shadowMap.enabled=true;R3.toneMapping=T.ACESFilmicToneMapping;R3.outputEncoding=T.sRGBEncoding;
+const scene=new T.Scene(),cam=new T.PerspectiveCamera(50,16/9,.1,400),hemi=new T.HemisphereLight(0xffffff,0x334455,.9),sun=new T.DirectionalLight(0xffffff,1);sun.position.set(20,30,10);sun.castShadow=true;scene.add(hemi,sun);
+let grp=new T.Group(),FX=[],flash=0,cam0=[0,4,18,0,3,0],fy=0;scene.add(grp);
+const M=(g,c,x,y,z,o)=>{const q=new T.Mesh(g,new T.MeshStandardMaterial(Object.assign({color:c,roughness:.8},o||{})));q.position.set(x||0,y||0,z||0);q.castShadow=q.receiveShadow=true;grp.add(q);return q};
+const B=(w,h,d,c,x,y,z,o)=>M(new T.BoxGeometry(w,h,d),c,x,y,z,o),C=(r,h,c,x,y,z,o)=>M(new T.CylinderGeometry(r,r,h,12),c,x,y,z,o),S2=(r,c,x,y,z,o)=>M(new T.SphereGeometry(r,14,10),c,x,y,z,o),K=(r,h,c,x,y,z,sg)=>M(new T.ConeGeometry(r,h,sg||8),c,x,y,z);
+const sea=c=>{const q=M(new T.PlaneGeometry(300,300),c,0,0,0,{metalness:.3,roughness:.25});q.rotation.x=-Math.PI/2};
+const lit=(c,i,x,y,z,d)=>{const l=new T.PointLight(c,i,d||25);l.position.set(x,y,z);grp.add(l)};
+const palm=(x,z)=>{C(.2,4,0x7a5a3a,x,2,z);for(let i=0;i<6;i++){const l=K(.35,2.6,0x2e8b3a,x+Math.cos(i)*1.1,4.1,z+Math.sin(i)*1.1,4);l.rotation.z=Math.cos(i)*1.2;l.rotation.x=Math.sin(i)*1.2}};
+const pine=(x,z)=>{C(.25,2,0x5d4037,x,1,z);K(1.6,3.5,0x1f6b2f,x,3.2,z);K(1.2,3,0x2a8a3d,x,4.8,z)};
+const torch=(x,y,z)=>{C(.08,1.2,0x5d4037,x,y,z);const f=S2(.18,0xff9a2a,x,y+.7,z,{emissive:0xff6a00,emissiveIntensity:2});FX.push(t=>f.scale.setScalar(1+Math.sin(t*14+x)*.15));lit(0xff8a3a,1.3,x,y+1,z,18)};
+const shipM=tilt=>{B(4,1.4,12,0x5b3a22,0,.9,0);B(3.6,.2,11.6,0x8a6a45,0,1.7,0);C(.18,9,0x4a3626,0,6,1);B(5,4.5,.1,0xf1e8d0,0,6.5,1.4);B(4,3,.1,0xf1e8d0,0,5.5,-3);B(1.2,.7,.05,0x111111,0,10.7,1);
+  [-1.9,1.9].forEach(x=>B(.1,.7,11,0x4a3626,x,2.1,0));for(let i=0;i<3;i++)C(.5,.9,0x6b4a2a,-1+i*1,2.2,3.5);FX.push(t=>{grp.rotation.z=Math.sin(t*.8)*tilt;grp.rotation.x=Math.cos(t*.6)*tilt*.5})};
+const SC={
+ port(){scene.background=new T.Color(0x2b2f55);scene.fog=new T.Fog(0x2b2f55,25,100);sea(0x16334f);B(30,.4,10,0x6b4f33,0,.3,5);for(let i=-7;i<=7;i+=2)B(.3,1.6,.3,0x4a3626,i*2,-.2,10);
+  B(8,5,6,0x7a5a3a,-9,2.8,-3);K(6.2,3,0x5a2f26,-9,7.2,-3,4).rotation.y=Math.PI/4;B(1.4,2.2,.2,0x3b2a1e,-9,1.4,.05);B(1.2,1,.2,0xffd27a,-6,3.4,.05,{emissive:0xffb84a,emissiveIntensity:1.6});
+  [[-3,2,7],[10,2,7]].forEach(([x,y,z])=>{S2(.2,0xffc766,x,y,z,{emissive:0xffa733,emissiveIntensity:2});lit(0xffb866,1.6,x,y,z,20)});for(let i=0;i<4;i++)C(.5,.9,0x6b4a2a,6+i*1.1,.8,2+(i%2)*.8);fy=.5;cam0=[0,4,18,0,3,0]},
+ ship(){scene.background=new T.Color(0xf29a5a);scene.fog=new T.Fog(0xf0a070,30,140);sea(0x1d5f8f);S2(4,0xfff0b0,-30,10,-70,{emissive:0xffd070,emissiveIntensity:1.5});shipM(.03);fy=1.8;cam0=[0,5,16,0,3,0]},
+ storm(){scene.background=new T.Color(0x0d1018);scene.fog=new T.Fog(0x0d1018,15,80);sea(0x0a1a2a);shipM(.1);for(let i=0;i<16;i++){const w=B(6,2,3,0x123049,(Math.random()-.5)*60,0,(Math.random()-.5)*50);FX.push(t=>w.position.y=Math.sin(t*1.5+i)*1.4)}
+  const n=700,p=new Float32Array(n*3);for(let i=0;i<n;i++){p[i*3]=(Math.random()-.5)*60;p[i*3+1]=Math.random()*30;p[i*3+2]=(Math.random()-.5)*40}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(p,3));const pts=new T.Points(g,new T.PointsMaterial({color:0x9ab,size:.15}));grp.add(pts);
+  FX.push(()=>{const a=g.attributes.position;for(let i=0;i<n;i++){a.array[i*3+1]-=.8;if(a.array[i*3+1]<0)a.array[i*3+1]=30}a.needsUpdate=true;if(Math.random()<.008)flash=1;flash*=.9;hemi.intensity=.35+flash*2.8});fy=1.8;cam0=[0,6,17,0,3,0]},
+ beach(){scene.background=new T.Color(0x7fd1ff);scene.fog=new T.Fog(0x9fdcff,40,160);sea(0x1fa7b8);C(18,1,0xe8d8a0,0,0,-2);[[-7,-5],[8,-6],[-12,-1],[12,-1],[3,-10],[-4,-11]].forEach(([x,z])=>palm(x,z));K(9,12,0x4a7a3a,-16,6,-30,16);
+  S2(3,0xfff3b0,25,22,-50,{emissive:0xffe08a,emissiveIntensity:1.5});[[6,1],[-8,2],[10,3]].forEach(([x,z])=>S2(.9,0x888888,x,.4,z));fy=.5;cam0=[0,3.5,17,0,3,0]},
+ jungle(){scene.background=new T.Color(0x16301c);scene.fog=new T.Fog(0x16301c,8,50);const g=B(120,.3,120,0x1d4d27,0,-.1,0);for(let i=0;i<40;i++)pine((Math.random()-.5)*50,-4-Math.random()*30);
+  for(let i=0;i<10;i++){const f=S2(.1,0xd8ff7a,(Math.random()-.5)*14,1+Math.random()*3,-Math.random()*8,{emissive:0xc8ff4a,emissiveIntensity:2});FX.push(t=>f.position.y=1.5+Math.sin(t+i)*.8)}fy=0;cam0=[0,3,14,0,2.5,0]},
+ cave(){scene.background=new T.Color(0x07080c);scene.fog=new T.Fog(0x07080c,6,42);B(60,.4,60,0x2a2622,0,-.2,0);for(let i=0;i<26;i++){const a=i/26*6.28,r=14+Math.random()*3;S2(2+Math.random()*2.5,0x3a3a40,Math.cos(a)*r,2,Math.sin(a)*r-4)}
+  torch(-6,1,-4);torch(6,1,-4);torch(-3,1,-12);torch(3,1,-12);B(3,.3,.2,0xb71c1c,0,4,-14).rotation.z=.8;B(3,.3,.2,0xb71c1c,0,4,-14).rotation.z=-.8;fy=0;cam0=[0,3.5,14,0,2,-4]},
+ treasure(){SC.cave();B(3,1.4,2,0x6b4a2a,0,.7,-5);B(3.1,.5,2.1,0x7b5a3a,0,1.6,-5.4);for(let i=0;i<70;i++)C(.22,.06,0xffc107,(Math.random()-.5)*5,1.2+Math.random()*.8,-5+(Math.random()-.5)*2,{emissive:0xaa7700,emissiveIntensity:1,metalness:.9});lit(0xffd54f,3,0,2.5,-5,14);cam0=[0,3.5,12,0,1.5,-5]}};
+const NPC={doc:[0x2b4a8a,0xffffff],silver:[0x8a1f1f,0x222222,1],capt:[0x1b2a4a,0x111111],ben:[0x6b5a3a,null,0]};
+const fig=(col,o)=>{const g=new T.Group();o=o||{};const P=(geo,c,x,y,z)=>{const q=new T.Mesh(geo,new T.MeshStandardMaterial({color:c,roughness:.7}));q.position.set(x,y,z);q.castShadow=true;g.add(q);return q};
+  P(new T.CylinderGeometry(.35,.45,1.1,12),col,0,1.05,0);P(new T.SphereGeometry(.3,16,12),0xf0c8a0,0,1.85,0);[-.15,.15].forEach(x=>P(new T.CylinderGeometry(.12,.12,.8,8),0x2b2b2b,x,.4,0));[-.5,.5].forEach(x=>P(new T.CylinderGeometry(.09,.09,.8,8),col,x,1.1,0));
+  if(o.hat)P(new T.ConeGeometry(.42,.35,3),o.hat,0,2.2,0);if(o.beard)P(new T.SphereGeometry(.2,10,8),0x5a3b1e,0,1.65,.18);if(o.crutch)P(new T.CylinderGeometry(.04,.04,1.6,6),0x6b4a2a,.65,.8,0);if(o.parrot)P(new T.SphereGeometry(.14,10,8),0x2ecc71,-.4,2.1,0);return g};
+const label=n=>{const q=document.createElement('canvas');q.width=256;q.height=64;const g=q.getContext('2d');g.font='bold 30px Arial';g.textAlign='center';g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=5;g.strokeText(n,128,42);g.fillText(n,128,42);const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(q),depthTest:false}));s.scale.set(3,.75,1);return s};
+const COL=[0xc0392b,0x2980b9,0x27ae60,0xf39c12,0x8e44ad,0x16a085,0xd35400,0x7f8c8d];
+function build(node,players){grp.traverse(o=>{if(o.geometry)o.geometry.dispose()});scene.remove(grp);grp=new T.Group();scene.add(grp);FX=[];hemi.intensity=.9;grp.rotation.set(0,0,0);SC[N[node].sc]();
+  players.forEach((p,i)=>{const f=fig(COL[i%8],{hat:0x222222});f.position.set(-6+i*1.5,fy,5);f.rotation.y=.4;grp.add(f);const l=label(p.name);l.position.set(-6+i*1.5,fy+2.9,5);grp.add(l);FX.push(t=>f.position.y=fy+Math.abs(Math.sin(t*2+i))*.05)});
+  const nn=NPC[N[node].npc];if(nn){const f=fig(nn[0],{hat:nn[1],crutch:nn[2]===1,parrot:nn[2]===1,beard:nn[2]===0});f.position.set(5,fy,3);f.rotation.y=-.5;f.scale.setScalar(1.15);grp.add(f)}}
+let st=null,cur='',ti=null,pk='';const $=id=>document.getElementById(id);
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(b||{})});
+function opts(){const n=N[st.node],o=n.o||[['Сыграть заново','start']],c=st.counts||{};$('opts').innerHTML='';
+  o.forEach(([l,to])=>{const b=document.createElement('button');b.className='gb'+(st.mine==to?' on':'');b.textContent=l+(c[to]?'  ['+c[to]+']':'');b.onclick=async()=>{try{const r=await post(V,{to}),d=await r.json();if(r.ok){st=d;opts();stat()}else toast(d.error,'error')}catch(e){toast('Нет связи','error')}};$('opts').append(b)});stat()}
+function stat(){const v=st.players.filter(p=>p.voted).length;$('vt').textContent='Проголосовали: '+v+'/'+st.players.length+' · '+st.players.map(p=>p.name+(p.voted?' ✓':'')).join(', ');$('res').style.display=(st.host&&v>0)?'':'none'}
+function show(){const n=N[st.node];if(!n)return;const key=st.node+'|'+st.players.map(p=>p.name).join();
+  if(st.node!=cur){cur=st.node;build(st.node,st.players);pk=key;$('who').textContent=n.who;clearInterval(ti);let i=0;$('txt').textContent='';ti=setInterval(()=>{$('txt').textContent=n.t.slice(0,++i);if(i>=n.t.length)clearInterval(ti)},20)}
+  else if(key!=pk){pk=key;build(st.node,st.players)}opts()}
+$('res').onclick=async()=>{try{const r=await post(RS),d=await r.json();if(r.ok){st=d;show()}else toast(d.error,'error')}catch(e){}};
+async function poll(){try{const d=await (await fetch(S)).json();if(!d.error){st=d;show()}}catch(e){}}
+const t0=performance.now();let alive=true;
+(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;FX.forEach(f=>f(t));cam.position.set(cam0[0]+Math.sin(t*.15)*4,cam0[1]+Math.sin(t*.2)*.6,cam0[2]+Math.cos(t*.15)*1.5);cam.lookAt(cam0[3],cam0[4],cam0[5]);R3.render(scene,cam)})();
+poll();setInterval(poll,1000)}
+</script>{% endblock %}

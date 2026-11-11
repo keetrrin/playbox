@@ -1,0 +1,23 @@
+{% extends 'games/base.html' %}{% block content %}
+<section class="hero"><h1>PlayBox</h1><p>{{ games|length }} мини-игр в браузере. Играйте, бейте рекорды, зовите друзей.</p></section>
+<section class="card friends"><div><h3>Играть с друзьями</h3><p>Крестики-нолики, четыре в ряд, гомоку и КНБ вдвоём — или гонка очков в любой игре, сколько угодно игроков.</p></div>
+{% if user.is_authenticated %}<div class="fr">
+<form method="post" action="{% url 'room_new' %}">{% csrf_token %}<button>Крестики-нолики 1×1</button></form>
+<form method="post" action="{% url 'duel_new' %}">{% csrf_token %}<select name="kind">{% for k,v in duel_kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><button>Игра вдвоём</button></form>
+<form method="post" action="{% url 'uno_new' %}">{% csrf_token %}<button name="mode" value="one">UNO 3D: 1 карта</button><button name="mode" value="many">UNO 3D: тянуть до нужной</button></form>
+<form method="post" action="{% url 'durak_new' %}">{% csrf_token %}<button>Дурак 3D (2–4 игрока)</button></form>
+<form method="post" action="{% url 'story_new' %}">{% csrf_token %}<button>Остров сокровищ (3D-новелла)</button></form>
+<form method="post" action="{% url 'race_new' %}">{% csrf_token %}<select name="game">{% for g in games %}<option value="{{ g.slug }}">{{ g.title }}</option>{% endfor %}</select><button>Гонка очков</button></form>
+<form onsubmit="location.href='/join/'+encodeURIComponent(this.c.value.trim())+'/';return false"><input name="c" placeholder="Код комнаты" maxlength="6" style="width:150px"><button>Войти</button></form></div>
+{% else %}<a href="{% url 'login' %}"><button>Войдите, чтобы играть с друзьями</button></a>{% endif %}</section>
+<div class="tools"><input id="q" placeholder="Поиск игры…"><button id="rnd" class="ghost">Случайная игра</button></div>
+<div class="chips" id="chips"><button class="on" data-g="all">Все</button>{% for k,v in genres %}<button data-g="{{ k }}">{{ v }}</button>{% endfor %}</div>
+<div class="grid">
+{% for g in games %}<div class="card" data-g="{{ g.genre }}"><div class="e">{{ g.emoji }}</div><h3>{{ g.title }}</h3><p>{{ g.description }}</p>
+<a href="{% url 'game' g.slug %}"><button>Играть →</button></a></div>{% endfor %}</div>
+<script>
+let G='all';const cards=[...document.querySelectorAll('.grid .card')],q=document.getElementById('q');
+const f=()=>cards.forEach(c=>{c.style.display=(G=='all'||c.dataset.g==G)&&c.querySelector('h3').textContent.toLowerCase().includes(q.value.toLowerCase())?'':'none'});
+document.getElementById('chips').onclick=e=>{if(!e.target.dataset.g)return;G=e.target.dataset.g;document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',b==e.target));f()};
+q.oninput=f;document.getElementById('rnd').onclick=()=>location.href=cards[Math.random()*cards.length|0].querySelector('a').href;
+</script>{% endblock %}
